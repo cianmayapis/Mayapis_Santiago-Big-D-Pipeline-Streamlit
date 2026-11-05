@@ -1,3 +1,4 @@
+# requirements.txt
 # This file contains all required packages for both the Streamlit dashboard and Kafka producer
 streamlit>=1.28.0  # Modern web framework for building data applications
 streamlit-autorefresh
