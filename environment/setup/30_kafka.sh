@@ -3,18 +3,30 @@ source "$(dirname "$0")/lib/common.sh"
 [[ -n "${JAVA_HOME:-}" ]] || die "JAVA_HOME not set. Run 10_system_deps.sh first."
 
 KAFKA_TGZ="kafka_${KAFKA_SCALA}-${KAFKA_VERSION}.tgz"
-KAFKA_DIR="${INSTALL_ROOT}/kafka_${KAFKA_SCALA}-${KAFKA_VERSION}"
+KAFKA_DIR="${KAFKA_DIR_OVERRIDE:-${INSTALL_ROOT}/kafka_${KAFKA_SCALA}-${KAFKA_VERSION}}"
 
 if [[ -x "${KAFKA_DIR}/bin/kafka-server-start.sh" ]]; then
-  ok "Kafka ${KAFKA_VERSION} already installed at ${KAFKA_DIR}"
+  ok "Using existing Kafka at ${KAFKA_DIR}"
+elif [[ -n "${KAFKA_DIR_OVERRIDE:-}" ]]; then
+  die "KAFKA_DIR_OVERRIDE is set but ${KAFKA_DIR}/bin/kafka-server-start.sh was not found."
 else
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
   download_verified "kafka/${KAFKA_VERSION}/${KAFKA_TGZ}" "${tmp}/${KAFKA_TGZ}"
   $SUDO tar -xzf "${tmp}/${KAFKA_TGZ}" -C "${INSTALL_ROOT}"
   $SUDO chown -R "$USER":"$(id -gn)" "${KAFKA_DIR}"
 fi
-$SUDO ln -sfn "${KAFKA_DIR}" "${INSTALL_ROOT}/kafka"
-set_env_var KAFKA_HOME "${INSTALL_ROOT}/kafka"
+
+# Warn if the install doesn't match the version pinned in config.env
+if ! ls "${KAFKA_DIR}/libs" 2>/dev/null | grep -q "^kafka_${KAFKA_SCALA}-${KAFKA_VERSION}\.jar"; then
+  warn "Kafka in ${KAFKA_DIR} does not look like ${KAFKA_SCALA}-${KAFKA_VERSION}; check KAFKA_VERSION in config.env."
+fi
+
+if [[ -n "${KAFKA_DIR_OVERRIDE:-}" ]]; then
+  set_env_var KAFKA_HOME "${KAFKA_DIR}"
+else
+  $SUDO ln -sfn "${KAFKA_DIR}" "${INSTALL_ROOT}/kafka"
+  set_env_var KAFKA_HOME "${INSTALL_ROOT}/kafka"
+fi
 
 # --- Locate the KRaft config (4.x: config/server.properties) ---
 CFG=""
