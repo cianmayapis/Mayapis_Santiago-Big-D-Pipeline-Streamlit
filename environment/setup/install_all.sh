@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Master installer: MongoDB + Kafka + Spark + Conda env on Ubuntu.
-# Usage: ./install_all.sh [--skip-mongo] [--smoke-test]
+# Usage: ./install_all.sh [--skip-mongo] [--smoke-test] [--test-requirements]
 set -Eeo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${HERE}/config.env"            # <-- fixes the env name in the final message
+SCRIPT_ROOT="$HERE"                      # config.env uses this for REQUIREMENTS_FILE
+source "${HERE}/config.env"
 
 SKIP_MONGO=0; SMOKE=""; TEST_REQS=0
 for arg in "$@"; do
@@ -16,7 +17,12 @@ for arg in "$@"; do
   esac
 done
 
-# ... (logging and run() unchanged) ...
+mkdir -p "${HERE}/logs"
+LOG="${HERE}/logs/install_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$LOG") 2>&1
+echo "Logging to ${LOG}"
+
+run() { echo; echo "=================== $1 ==================="; bash "${HERE}/$1"; }
 
 run 00_preflight.sh
 run 10_system_deps.sh
