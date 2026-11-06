@@ -56,15 +56,17 @@ verify_sha512() {
   [[ -n "$expected" && "$expected" == "$actual" ]]
 }
 
-# download_verified <path-under-dist> <dest-file>
-# Tries the main mirror, then archive.apache.org; verifies SHA-512.
+curl_retry() {
+  curl -fL --retry 3 --retry-delay 2 --connect-timeout 15 "$@" \
+    || curl -4 -fL --retry 3 --retry-delay 2 --connect-timeout 15 "$@"
+}
+
 download_verified() {
   local rel="$1" dest="$2" base url
   for base in "$APACHE_MIRROR" "$APACHE_ARCHIVE"; do
     url="${base}/${rel}"
     log "Downloading ${url}"
-    if curl -fL --retry 3 --retry-delay 2 -o "$dest" "$url" \
-       && curl -fsSL -o "${dest}.sha512" "${url}.sha512"; then
+    if curl_retry -o "$dest" "$url" && curl_retry -sS -o "${dest}.sha512" "${url}.sha512"; then
       if verify_sha512 "$dest" "${dest}.sha512"; then ok "SHA-512 verified"; return 0; fi
       warn "Checksum mismatch from ${base}"
     else

@@ -12,7 +12,8 @@ source /etc/os-release
 [[ "${ID}" == "ubuntu" ]] || die "Ubuntu required (found: ${ID})."
 case "${VERSION_ID}" in
   22.04|24.04) ok "Ubuntu ${VERSION_ID} supported" ;;
-  *) warn "Ubuntu ${VERSION_ID} is untested; MongoDB ${MONGO_MAJOR} supports 22.04/24.04." ;;
+  26.04) warn "Ubuntu 26.04: MongoDB packages come from the 'noble' repo (handled in 20_mongodb.sh)." ;;
+  *) warn "Ubuntu ${VERSION_ID} is untested." ;;
 esac
 case "$(uname -m)" in
   x86_64|aarch64) ok "Architecture $(uname -m)" ;;
@@ -25,14 +26,17 @@ if ! have curl; then
 fi
 
 # --- Network reachability (any HTTP response counts as reachable) ---
-for host in downloads.apache.org archive.apache.org repo.mongodb.org \
-            repo.anaconda.com repo1.maven.org pypi.org; do
-  if curl -sS -o /dev/null --max-time 10 "https://${host}"; then
-    ok "Reachable: ${host}"
-  else
-    die "Cannot reach ${host} (check VM network/proxy)."
-  fi
+reach() {
+  curl -sS -o /dev/null --max-time 15 "https://$1" 2>/dev/null \
+    || curl -4 -sS -o /dev/null --max-time 15 "https://$1" 2>/dev/null   # retry over IPv4
+}
+for host in downloads.apache.org repo.mongodb.org repo.anaconda.com \
+            repo1.maven.org pypi.org api.weatherapi.com; do
+  if reach "$host"; then ok "Reachable: ${host}"; else die "Cannot reach ${host} (check VM network/proxy)."; fi
 done
+# Fallback mirror only: warn, don't abort
+if reach archive.apache.org; then ok "Reachable: archive.apache.org"
+else warn "archive.apache.org unreachable; fine unless a pinned version has left downloads.apache.org."; fi
 
 # --- Resources ---
 avail_gb="$(df -BG --output=avail / | tail -1 | tr -dc '0-9')"
