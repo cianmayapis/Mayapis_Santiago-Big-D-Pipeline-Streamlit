@@ -15,7 +15,9 @@ else
 fi
 $SUDO ln -sfn "${SPARK_DIR}" "${INSTALL_ROOT}/spark"
 set_env_var SPARK_HOME "${INSTALL_ROOT}/spark"
-set_env_var SPARK_KAFKA_PACKAGE "${SPARK_KAFKA_PACKAGE}"
+set_env_var SPARK_PACKAGES "${SPARK_PACKAGES}"
+set_env_var SPARK_CHECKPOINT_DIR "${SPARK_CHECKPOINT_DIR}"
+mkdir -p "${SPARK_CHECKPOINT_DIR}"
 
 out="$("${INSTALL_ROOT}/spark/bin/spark-submit" --version 2>&1 || true)"
 grep -q "version ${SPARK_VERSION}" <<< "$out" \

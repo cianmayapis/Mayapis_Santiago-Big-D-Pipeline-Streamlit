@@ -21,8 +21,8 @@ else
   rm -f "$installer"
   CONDA_BASE="$HOME/miniconda3"
   "${CONDA_BASE}/bin/conda" init bash >/dev/null
+  
 fi
-
 source "${CONDA_BASE}/etc/profile.d/conda.sh"
 
 if conda env list | awk '{print $1}' | grep -qx "${CONDA_ENV}"; then
@@ -32,11 +32,25 @@ else
   conda create -y -n "${CONDA_ENV}" --override-channels -c conda-forge "python=${PY_VERSION}" pip
 fi
 
+envpip() { conda run -n "${CONDA_ENV}" --no-capture-output python -m pip "$@"; }
+
 log "Installing Python packages"
-conda run -n "${CONDA_ENV}" --no-capture-output python -m pip install --upgrade pip
-conda run -n "${CONDA_ENV}" --no-capture-output python -m pip install "${PIP_PACKAGES[@]}"
+envpip install --upgrade pip
+if [[ -f "${REQUIREMENTS_FILE}" ]]; then
+  log "Installing from ${REQUIREMENTS_FILE}"
+  envpip install -r "${REQUIREMENTS_FILE}"
+  for pkg in pymongo requests; do
+    grep -Eqi "^[[:space:]]*${pkg}\b" "${REQUIREMENTS_FILE}" \
+      || warn "'${pkg}' is not listed (uncommented) in requirements.txt; a grader's 'pip install -r' would miss it."
+  done
+else
+  warn "No requirements file at ${REQUIREMENTS_FILE}; installing the fallback list."
+  envpip install "${BASE_PIP_PACKAGES[@]}"
+fi
+envpip install "${EXTRA_PIP_PACKAGES[@]}"
 
 PY="${CONDA_BASE}/envs/${CONDA_ENV}/bin/python"
+set_env_var CONDA_BASE "${CONDA_BASE}"
 set_env_var PYSPARK_PYTHON "$PY"
 set_env_var PYSPARK_DRIVER_PYTHON "$PY"
 set_env_var CONDA_ENV_NAME "${CONDA_ENV}"

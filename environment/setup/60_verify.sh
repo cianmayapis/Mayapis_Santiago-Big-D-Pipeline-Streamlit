@@ -43,8 +43,8 @@ fi
 
 # --- Optional end-to-end smoke test: produce 1 message, read it with Spark ---
 if [[ "$SMOKE" == "--smoke-test" ]]; then
-  log "Smoke test: Kafka -> Spark"
-  bash "${SCRIPT_ROOT}/services.sh" start kafka
+  log "Smoke test: Kafka -> Spark -> MongoDB"
+  bash "${SCRIPT_ROOT}/services.sh" start all
   TOPIC="smoke_$(date +%s)"
   "${KAFKA_HOME}/bin/kafka-topics.sh" --bootstrap-server "$KAFKA_BOOTSTRAP" --create --topic "$TOPIC" >/dev/null
   echo '{"ok":1}' | "${KAFKA_HOME}/bin/kafka-console-producer.sh" --bootstrap-server "$KAFKA_BOOTSTRAP" --topic "$TOPIC"
@@ -52,20 +52,31 @@ if [[ "$SMOKE" == "--smoke-test" ]]; then
   tmp_py="$(mktemp --suffix=.py)"; tmp_out="$(mktemp)"
   cat > "$tmp_py" <<PY
 from pyspark.sql import SparkSession
-s = SparkSession.builder.master("local[1]").appName("smoke").getOrCreate()
+s = (SparkSession.builder.master("local[1]").appName("smoke")
+     .config("spark.mongodb.read.connection.uri", "${MONGO_URI}")
+     .config("spark.mongodb.write.connection.uri", "${MONGO_URI}")
+     .getOrCreate())
 df = (s.read.format("kafka")
         .option("kafka.bootstrap.servers", "${KAFKA_BOOTSTRAP}")
         .option("subscribe", "${TOPIC}")
         .option("startingOffsets", "earliest").load())
-print("SMOKE_COUNT", df.count())
+print("SMOKE_KAFKA_COUNT", df.count())
+(df.selectExpr("CAST(value AS STRING) AS value")
+   .write.format("mongodb").mode("append")
+   .option("database", "smoke_test").option("collection", "${TOPIC}").save())
+back = (s.read.format("mongodb")
+          .option("database", "smoke_test").option("collection", "${TOPIC}").load())
+print("SMOKE_MONGO_COUNT", back.count())
 PY
-  "${SPARK_HOME}/bin/spark-submit" --packages "${SPARK_KAFKA_PACKAGE}" "$tmp_py" > "$tmp_out" 2>&1 || true
-  if grep -q "SMOKE_COUNT 1" "$tmp_out"; then
-    ok "Spark read the message from Kafka (package + broker are compatible)"
-  else
-    warn "Smoke test FAILED. Last log lines:"; tail -n 25 "$tmp_out" >&2; fail=1
-  fi
+  "${SPARK_HOME}/bin/spark-submit" --packages "${SPARK_PACKAGES}" "$tmp_py" > "$tmp_out" 2>&1 || true
+  if grep -q "SMOKE_KAFKA_COUNT 1" "$tmp_out"; then ok "Spark read from Kafka"
+  else warn "Kafka -> Spark FAILED"; fail=1; fi
+  if grep -q "SMOKE_MONGO_COUNT 1" "$tmp_out"; then ok "Spark wrote to and read from MongoDB (connector OK)"
+  else warn "Spark -> MongoDB FAILED"; fail=1; fi
+  if (( fail )); then warn "Last log lines:"; tail -n 30 "$tmp_out" >&2; fi
+
   "${KAFKA_HOME}/bin/kafka-topics.sh" --bootstrap-server "$KAFKA_BOOTSTRAP" --delete --topic "$TOPIC" >/dev/null || true
+  mongosh --quiet --eval 'db.getSiblingDB("smoke_test").dropDatabase()' >/dev/null 2>&1 || true
   rm -f "$tmp_py" "$tmp_out"
 fi
 
