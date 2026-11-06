@@ -1,7 +1,7 @@
 # added gitignores
 .vscode/settings.json
 environment/setup/.env
-
+environment/setup/logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
