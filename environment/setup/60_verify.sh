@@ -91,6 +91,7 @@ back = (s.read.format("mongodb")
 print("SMOKE_MONGO_COUNT", back.count())
 PY
   "${SPARK_HOME}/bin/spark-submit" --packages "${SPARK_PACKAGES}" \
+    --exclude-packages "org.apache.hadoop:hadoop-client-runtime,org.apache.hadoop:hadoop-client-api" \
     --conf "spark.redaction.regex=(?i)secret|password|token|access[.]key|uri" \
     "$tmp_py" > "$tmp_out" 2>&1 || true
   if grep -q "SMOKE_KAFKA_COUNT 1" "$tmp_out"; then ok "Spark read from Kafka"
