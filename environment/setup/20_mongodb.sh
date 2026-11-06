@@ -12,19 +12,27 @@ if [[ "${installed_major}" == "${MONGO_MAJOR}" ]]; then
 else
   codename="$(. /etc/os-release; echo "${VERSION_CODENAME}")"
   repo_base="https://repo.mongodb.org/apt/ubuntu"
-  # Brand-new Ubuntu releases may not have a MongoDB repo yet: fall back to noble
-  if ! curl -fsI --max-time 20 "${repo_base}/dists/${codename}/mongodb-org/${MONGO_MAJOR}/InRelease" >/dev/null 2>&1; then
-    warn "No MongoDB ${MONGO_MAJOR} repo for '${codename}'; using 'noble' packages instead."
-    codename=noble
-  fi
   keyring="/usr/share/keyrings/mongodb-server-${MONGO_MAJOR}.gpg"
+  list_file="/etc/apt/sources.list.d/mongodb-org-${MONGO_MAJOR}.list"
 
   curl -fsSL "https://www.mongodb.org/static/pgp/server-${MONGO_MAJOR}.asc" \
     | $SUDO gpg --dearmor --yes -o "${keyring}"
-  echo "deb [ arch=amd64,arm64 signed-by=${keyring} ] ${repo_base} ${codename}/mongodb-org/${MONGO_MAJOR} multiverse" \
-    | $SUDO tee "/etc/apt/sources.list.d/mongodb-org-${MONGO_MAJOR}.list" >/dev/null
 
-  $SUDO apt-get update -y
+  add_repo() {   # $1 = Ubuntu codename to use for the MongoDB repo path
+    echo "deb [ arch=amd64,arm64 signed-by=${keyring} ] ${repo_base} $1/mongodb-org/${MONGO_MAJOR} multiverse" \
+      | $SUDO tee "${list_file}" >/dev/null
+    $SUDO apt-get update -y || true
+  }
+
+  add_repo "${codename}"
+  # A repo index can exist without packages in it (new Ubuntu releases): check for real packages
+  if ! apt-cache show mongodb-org-server >/dev/null 2>&1; then
+    warn "MongoDB ${MONGO_MAJOR} repo for '${codename}' has no packages; using 'noble' packages instead."
+    add_repo noble
+  fi
+  apt-cache show mongodb-org-server >/dev/null 2>&1 \
+    || die "MongoDB packages not found in ${repo_base} (tried '${codename}' and 'noble'). Check: apt-get update output."
+
   if ! $SUDO apt-get install -y mongodb-org; then
     warn "Latest mongodb-org failed to install; retrying with pinned 8.0.20 packages."
     $SUDO apt-get install -y --allow-downgrades \
