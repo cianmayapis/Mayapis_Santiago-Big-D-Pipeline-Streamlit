@@ -1,0 +1,7 @@
+cd pipeline-setup
+chmod +x *.sh
+./install_all.sh --smoke-test     # first run; the smoke test downloads the Spark-Kafka jars
+./install_all.sh --skip-mongo
+source ~/.bashrc
+./services.sh start
+./services.sh status
