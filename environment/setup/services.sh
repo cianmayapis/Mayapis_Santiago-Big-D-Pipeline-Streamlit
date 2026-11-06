@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Usage: ./services.sh {start|stop|status} [kafka|mongo|all]
 source "$(dirname "$0")/lib/common.sh"
-action="${1:?usage: $0 {start|stop|status} [kafka|mongo|all]}"
+action="${1:?usage: services.sh start, stop or status, optionally followed by kafka, mongo or all}"
 target="${2:-all}"
 
 want() { [[ "$target" == "all" || "$target" == "$1" ]]; }
