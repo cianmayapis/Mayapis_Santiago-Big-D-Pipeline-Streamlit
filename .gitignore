@@ -1,3 +1,8 @@
+# added gitignores
+.vscode/settings.json
+environment/setup/.env
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -207,4 +212,3 @@ marimo/_lsp/
 __marimo__/
 
 
-.vscode/settings.json
