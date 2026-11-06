@@ -75,3 +75,18 @@ download_verified() {
   done
   die "Could not download a verified copy of ${rel}"
 }
+
+# ---- .env reading and MongoDB URI resolution ----
+# Print the value of KEY from a dotenv file (quotes stripped). Always succeeds.
+env_get() {
+  [[ -f "$2" ]] || return 0
+  { grep -E "^[[:space:]]*$1=" "$2" | tail -1 | cut -d= -f2- | tr -d '\r' \
+      | sed -E "s/^[[:space:]]*[\"']?//; s/[\"']?[[:space:]]*\$//"; } || true
+}
+# Host part of MONGO_URI (safe to print: no credentials)
+mongo_host() { sed -E 's#^mongodb(\+srv)?://([^@/]*@)?([^/?]+).*#\3#' <<<"${MONGO_URI:-}"; }
+
+if [[ "${MONGO_MODE}" == "atlas" ]]; then
+  MONGO_URI="$(env_get MONGO_URI "${PROJECT_ENV_FILE}")"
+fi
+export MONGO_MODE MONGO_URI MONGO_DB MONGO_COLLECTION

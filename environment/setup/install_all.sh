@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Master installer: MongoDB + Kafka + Spark + Conda env on Ubuntu.
+# Master installer: Kafka + Spark + Conda env (+ local MongoDB if MONGO_MODE=local).
 # Usage: ./install_all.sh [--skip-mongo] [--smoke-test] [--test-requirements]
 set -Eeo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_ROOT="$HERE"                      # config.env uses this for REQUIREMENTS_FILE
-source "${HERE}/config.env"
+source "${HERE}/lib/common.sh"          # loads config.env, helpers and the Mongo URI from .env
 
 SKIP_MONGO=0; SMOKE=""; TEST_REQS=0
 for arg in "$@"; do
@@ -22,6 +21,12 @@ LOG="${HERE}/logs/install_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$LOG") 2>&1
 echo "Logging to ${LOG}"
 
+if [[ "${MONGO_MODE}" == "atlas" ]]; then
+  [[ -f "${PROJECT_ENV_FILE}" ]] || die "MONGO_MODE=atlas but ${PROJECT_ENV_FILE} was not found."
+  [[ "${MONGO_URI}" =~ ^mongodb(\+srv)?:// ]] || die "MONGO_URI is missing or malformed in ${PROJECT_ENV_FILE}."
+  ok "Atlas mode: MONGO_URI found in .env (host: $(mongo_host))"
+fi
+
 run() { echo; echo "=================== $1 ==================="; bash "${HERE}/$1"; }
 
 run 00_preflight.sh
@@ -36,5 +41,5 @@ if (( TEST_REQS )); then run 70_test_requirements.sh; fi
 
 echo
 echo "Done. Open a new shell (or: source ~/.bashrc), then:"
-echo "  ./services.sh start          # starts Kafka (+ topic) and MongoDB"
+echo "  ./services.sh start          # Kafka (+ topic); MongoDB is Atlas, nothing local to start"
 echo "  conda activate ${CONDA_ENV}"

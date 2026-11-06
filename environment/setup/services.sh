@@ -26,13 +26,22 @@ kafka_start() {
   fi
   ensure_topic
 }
-kafka_stop()  { "${KAFKA_HOME}/bin/kafka-server-stop.sh" || true; ok "Kafka stopped"; }
-mongo_start() { $SUDO systemctl start mongod; ok "MongoDB started"; }
-mongo_stop()  { $SUDO systemctl stop mongod;  ok "MongoDB stopped"; }
+kafka_stop() { "${KAFKA_HOME}/bin/kafka-server-stop.sh" || true; ok "Kafka stopped"; }
+
+mongo_start() {
+  if [[ "${MONGO_MODE}" == "atlas" ]]; then ok "MongoDB: Atlas (remote), nothing to start"
+  else $SUDO systemctl start mongod; ok "MongoDB started"; fi
+}
+mongo_stop() {
+  if [[ "${MONGO_MODE}" == "atlas" ]]; then ok "MongoDB: Atlas (remote), nothing to stop"
+  else $SUDO systemctl stop mongod; ok "MongoDB stopped"; fi
+}
 
 status() {
   if kafka_up; then ok "Kafka: running"; else warn "Kafka: stopped"; fi
-  if systemctl is-active --quiet mongod; then ok "MongoDB: running"; else warn "MongoDB: stopped"; fi
+  if [[ "${MONGO_MODE}" == "atlas" ]]; then ok "MongoDB: Atlas at $(mongo_host)"
+  elif systemctl is-active --quiet mongod; then ok "MongoDB: running"
+  else warn "MongoDB: stopped"; fi
 }
 
 case "$action" in
